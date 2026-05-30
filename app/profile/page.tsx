@@ -44,9 +44,29 @@ function ProfileContent() {
     if (!user?.id) return;
     setLoading(true);
     try {
-      const { error } = await supabase
+      // Check if profile exists first
+      const { data: existing } = await supabase
         .from("profiles")
-        .upsert({ user_id: user.id, full_name: fullName, phone });
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      let error;
+      if (existing) {
+        // Update existing profile
+        const result = await supabase
+          .from("profiles")
+          .update({ full_name: fullName, phone })
+          .eq("user_id", user.id);
+        error = result.error;
+      } else {
+        // Insert new profile
+        const result = await supabase
+          .from("profiles")
+          .insert({ user_id: user.id, full_name: fullName, phone });
+        error = result.error;
+      }
+
       if (error) throw error;
       toast.success("Profile updated successfully");
     } catch (error: any) {
