@@ -29,7 +29,7 @@ export function SmartsuppChat() {
     document.head.appendChild(script);
 
     return () => {
-      // Cleanup on unmount (only if navigating away entirely)
+      // Cleanup on unmount
       const existing = document.getElementById("smartsupp-script");
       if (existing) existing.remove();
     };

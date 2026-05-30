@@ -90,11 +90,6 @@ export default function Home() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5 }}
         >
-          {/* Contact - hidden on mobile */}
-          <div className="hidden md:flex items-center gap-3 mr-2 text-xs text-muted-foreground border-r border-border pr-3">
-            <span className="whitespace-nowrap">+1 (254) 363-3957</span>
-            <span className="whitespace-nowrap">Buffalo, NY</span>
-          </div>
           {isLoaded && (
             <>
               {isSignedIn ? (
@@ -714,15 +709,31 @@ export default function Home() {
             </ul>
           </div>
           <div>
-            <h4 className="font-semibold mb-4">Contact</h4>
-            <ul className="space-y-3">
+            <h4 className="font-semibold mb-4">Legal</h4>
+            <ul className="space-y-2">
               <li>
-                <a href="tel:+12543633957" className="text-sm text-muted-foreground hover:text-foreground">
-                  +1 (254) 363-3957
-                </a>
+                <Link
+                  href="#"
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Privacy
+                </Link>
               </li>
-              <li className="text-sm text-muted-foreground">
-                Buffalo, New York
+              <li>
+                <Link
+                  href="#"
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Terms
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="#"
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Licenses
+                </Link>
               </li>
             </ul>
           </div>
