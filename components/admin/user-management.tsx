@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, CheckCircle, XCircle, Clock } from "lucide-react"
+import { Search, CheckCircle, XCircle, Clock, Wallet, Shield, Trash2, Key, Ban } from "lucide-react"
 import { toast } from "sonner";
 
 export function UserManagement() {
@@ -17,7 +17,6 @@ export function UserManagement() {
     async function load() {
       setLoading(true);
       try {
-        // Fetch combined users list from API
         const response = await fetch("/api/admin/users/list");
         if (response.ok) {
           const data = await response.json();
@@ -38,20 +37,45 @@ export function UserManagement() {
     load();
   }, []);
 
+  const handleAction = async (userId: string, action: string) => {
+    try {
+      const res = await fetch("/api/admin/users/actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, action }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message || "Action completed");
+        // Refresh user list
+        const response = await fetch("/api/admin/users/list");
+        if (response.ok) {
+          const listData = await response.json();
+          setUsers(Array.isArray(listData.users) ? listData.users : []);
+        }
+      } else {
+        toast.error(data.error || "Action failed");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Action failed");
+    }
+  };
+
   const filteredUsers = users.filter((u) => {
     const matchesSearch =
       (u.full_name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       (u.email || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       (u.user_id || "").toLowerCase().includes(searchTerm.toLowerCase());
-    
-    // Map filter status to actual KYC status values
+
     let statusMatch = filterStatus === "all";
     if (filterStatus === "approved") {
       statusMatch = (u.kyc_status || "").toLowerCase() === "verified";
+    } else if (filterStatus === "admin") {
+      statusMatch = (u.role || "").toLowerCase() === "admin";
     } else if (filterStatus !== "all") {
       statusMatch = (u.kyc_status || "").toLowerCase() === filterStatus.toLowerCase();
     }
-    
+
     return matchesSearch && statusMatch;
   });
 
@@ -68,9 +92,9 @@ export function UserManagement() {
               className="pl-10 bg-background border-border"
             />
           </div>
-          <div className="flex gap-2">
-            {["all", "approved", "pending", "rejected"].map((status) => {
-              const displayName = status === "approved" ? "Verified" : status.charAt(0).toUpperCase() + status.slice(1);
+          <div className="flex gap-2 flex-wrap">
+            {["all", "approved", "pending", "rejected", "admin"].map((status) => {
+              const displayName = status === "approved" ? "Verified" : status === "admin" ? "Admins" : status.charAt(0).toUpperCase() + status.slice(1);
               return (
               <Button
                 key={status}
@@ -90,16 +114,19 @@ export function UserManagement() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left py-3 px-4 text-muted-foreground font-medium">User</th>
-                <th className="text-left py-3 px-4 text-muted-foreground font-medium">Email</th>
-                <th className="text-left py-3 px-4 text-muted-foreground font-medium">Join Date</th>
-                <th className="text-left py-3 px-4 text-muted-foreground font-medium">KYC</th>
+                <th className="text-left py-3 px-4 text-muted-foreground font-medium whitespace-nowrap">User</th>
+                <th className="text-left py-3 px-4 text-muted-foreground font-medium whitespace-nowrap">Email / Phone</th>
+                <th className="text-left py-3 px-4 text-muted-foreground font-medium whitespace-nowrap">Role</th>
+                <th className="text-left py-3 px-4 text-muted-foreground font-medium whitespace-nowrap">Balance</th>
+                <th className="text-left py-3 px-4 text-muted-foreground font-medium whitespace-nowrap">KYC</th>
+                <th className="text-left py-3 px-4 text-muted-foreground font-medium whitespace-nowrap">Join Date</th>
+                <th className="text-left py-3 px-4 text-muted-foreground font-medium whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td className="py-6 px-4" colSpan={4}>Loading users...</td>
+                  <td className="py-6 px-4 text-muted-foreground" colSpan={7}>Loading users...</td>
                 </tr>
               ) : filteredUsers.length ? (
                 filteredUsers.map((u) => (
@@ -107,31 +134,74 @@ export function UserManagement() {
                     <td className="py-3 px-4">
                       <div>
                         <p className="font-semibold text-foreground">{u.full_name || "Unnamed"}</p>
-                        <p className="text-xs text-muted-foreground">{u.user_id}</p>
+                        <p className="text-[10px] text-muted-foreground font-mono">{u.user_id.slice(0, 12)}...</p>
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-foreground">{u.email || "-"}</td>
-                    <td className="py-3 px-4 text-foreground">{u.created_at ? new Date(u.created_at).toLocaleDateString() : "-"}</td>
                     <td className="py-3 px-4">
-                      <span
-                        className={`px-2 py-1 rounded text-xs font-semibold ${
-                          u.kyc_status === "verified"
-                            ? "bg-green-500/20 text-green-400"
-                            : u.kyc_status === "pending"
-                            ? "bg-yellow-500/20 text-yellow-400"
-                            : "bg-red-500/20 text-red-400"
-                        }`}
-                      >
-                        {u.kyc_status === "verified" 
-                          ? "VERIFIED" 
-                          : (u.kyc_status || "PENDING").toUpperCase()}
+                      <p className="text-foreground">{u.email || "-"}</p>
+                      <p className="text-xs text-muted-foreground">{u.phone || ""}</p>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                        u.role === "admin"
+                          ? "bg-purple-500/20 text-purple-400"
+                          : "bg-blue-500/20 text-blue-400"
+                      }`}>
+                        {(u.role || "user").toUpperCase()}
                       </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <p className="text-foreground font-mono">${(u.balance || 0).toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground">P: ${(u.profit_balance || 0).toLocaleString()}</p>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                        u.kyc_status === "verified"
+                          ? "bg-green-500/20 text-green-400"
+                          : u.kyc_status === "pending"
+                          ? "bg-yellow-500/20 text-yellow-400"
+                          : "bg-red-500/20 text-red-400"
+                      }`}>
+                        {(u.kyc_status || "PENDING").toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-foreground whitespace-nowrap">
+                      {u.created_at ? new Date(u.created_at).toLocaleDateString() : "-"}
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleAction(u.user_id, u.kyc_status === "suspended" ? "unsuspend" : "suspend")}
+                          className="p-1.5 rounded hover:bg-yellow-500/10 text-yellow-500 transition-colors"
+                          title={u.kyc_status === "suspended" ? "Unsuspend" : "Suspend"}
+                        >
+                          <Ban size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleAction(u.user_id, "reset_password")}
+                          className="p-1.5 rounded hover:bg-blue-500/10 text-blue-500 transition-colors"
+                          title="Reset Password"
+                        >
+                          <Key size={14} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm("Delete this user and all their data? This cannot be undone.")) {
+                              handleAction(u.user_id, "delete");
+                            }
+                          }}
+                          className="p-1.5 rounded hover:bg-red-500/10 text-red-500 transition-colors"
+                          title="Delete User"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td className="py-6 px-4 text-muted-foreground" colSpan={4}>No users found.</td>
+                  <td className="py-6 px-4 text-muted-foreground" colSpan={7}>No users found.</td>
                 </tr>
               )}
             </tbody>

@@ -26,28 +26,49 @@ export async function GET() {
     const admin = getAdminClient();
     const { data: profiles, error: profilesError } = await admin
       .from("profiles")
-      .select("user_id, kyc_status, created_at, email, full_name");
+      .select("user_id, kyc_status, created_at, email, full_name, phone, role");
 
     if (profilesError) {
       console.error("Error fetching profiles:", profilesError);
     }
 
-    // Create a map of user_id to profile
+    // Fetch balances
+    const { data: balances, error: balancesError } = await admin
+      .from("user_balances")
+      .select("user_id, balance, profit_balance, total_deposits, total_withdrawals");
+
+    if (balancesError) {
+      console.error("Error fetching balances:", balancesError);
+    }
+
+    // Create maps
     const profilesMap: Record<string, any> = {};
     (profiles || []).forEach((profile: any) => {
       profilesMap[profile.user_id] = profile;
     });
 
-    // Combine Clerk users with profile data
+    const balancesMap: Record<string, any> = {};
+    (balances || []).forEach((b: any) => {
+      balancesMap[b.user_id] = b;
+    });
+
+    // Combine Clerk users with profile and balance data
     const combinedUsers = clerkUsers.map((clerkUser: any) => {
       const profile = profilesMap[clerkUser.id] || {};
+      const bal = balancesMap[clerkUser.id] || {};
       return {
         user_id: clerkUser.id,
         full_name: clerkUser.firstName && clerkUser.lastName
           ? `${clerkUser.firstName} ${clerkUser.lastName}`
           : clerkUser.firstName || clerkUser.lastName || "Unnamed",
         email: clerkUser.emailAddresses?.[0]?.emailAddress || profile.email || "-",
+        phone: profile.phone || "-",
         kyc_status: profile.kyc_status || "pending",
+        role: profile.role || "user",
+        balance: bal.balance || 0,
+        profit_balance: bal.profit_balance || 0,
+        total_deposits: bal.total_deposits || 0,
+        total_withdrawals: bal.total_withdrawals || 0,
         created_at: profile.created_at || new Date(clerkUser.createdAt || Date.now()).toISOString(),
       };
     });

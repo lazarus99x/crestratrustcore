@@ -46,8 +46,7 @@ function ProfileContent() {
     try {
       const { error } = await supabase
         .from("profiles")
-        .upsert({ user_id: user.id, full_name: fullName, phone })
-        .eq("user_id", user.id);
+        .upsert({ user_id: user.id, full_name: fullName, phone });
       if (error) throw error;
       toast.success("Profile updated successfully");
     } catch (error: any) {
