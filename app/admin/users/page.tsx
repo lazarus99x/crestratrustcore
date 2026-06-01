@@ -21,6 +21,8 @@ import {
   Trash2,
   Key,
   Ban,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -43,6 +45,9 @@ export default function AdminUsersPage() {
 
   // Active tab
   const [activeTab, setActiveTab] = useState("users");
+
+  // Mobile: user list vs detail view
+  const [showUserDetail, setShowUserDetail] = useState(false);
 
   async function loadClerkUsers() {
     setLoading(true);
@@ -68,7 +73,6 @@ export default function AdminUsersPage() {
   async function loadUserProfile(userId: string) {
     setProfileLoading(true);
     try {
-      // Use admin API route that bypasses RLS
       const response = await fetch(
         `/api/admin/users/profile?userId=${encodeURIComponent(userId)}`
       );
@@ -162,6 +166,7 @@ export default function AdminUsersPage() {
 
       if (action === "delete") {
         setSelectedUser(null);
+        setShowUserDetail(false);
         await loadClerkUsers();
       } else {
         await loadUserProfile(selectedUser.id);
@@ -231,7 +236,6 @@ export default function AdminUsersPage() {
 
       let updateData: any = { updated_at: new Date().toISOString() };
 
-      // Independent operations - no cross-connections between fields
       if (transactionType === "deposit") {
         updateData.account_balance = (currentBalance.account_balance || 0) + deltaAmount;
       } else if (transactionType === "withdrawal") {
@@ -258,7 +262,6 @@ export default function AdminUsersPage() {
 
       if (balanceError) throw balanceError;
 
-      // Log transaction - use valid types from DB check constraint
       const txType = transactionType === "trade_add" ? "deposit" : 
                      transactionType === "trade_subtract" ? "withdrawal" : transactionType;
       const { error: transactionError } = await supabase
@@ -334,8 +337,184 @@ export default function AdminUsersPage() {
 
   const isSuspended = selectedUser?.publicMetadata?.suspended === true;
 
+  // User detail view (used on mobile when a user is selected)
+  const UserDetailPanel = () => {
+    if (!selectedUser) return null;
+    return (
+      <div className="sm:hidden space-y-4">
+        <button
+          onClick={() => { setShowUserDetail(false); setSelectedUser(null); }}
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors mb-2"
+        >
+          ← Back to users
+        </button>
+
+        <Card className="p-4 border-border bg-card">
+          <div className="p-3 bg-muted rounded-lg">
+            <p className="font-medium text-sm sm:text-base">
+              {selectedUser.firstName && selectedUser.lastName
+                ? `${selectedUser.firstName} ${selectedUser.lastName}`
+                : selectedUser.firstName ||
+                  selectedUser.lastName ||
+                  "No name"}
+            </p>
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">
+              {selectedUser.emailAddresses[0]?.emailAddress || "No email"}
+            </p>
+            <p className="text-xs text-blue-500 mt-1 truncate">
+              Clerk ID: {selectedUser.id}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Created: {new Date(selectedUser.createdAt).toLocaleDateString()}
+            </p>
+          </div>
+
+          {profileLoading ? (
+            <div className="text-center py-4 text-muted-foreground">
+              <p>Loading user data...</p>
+            </div>
+          ) : userProfile ? (
+            <div className="space-y-3 mt-3">
+              {/* KYC Status */}
+              <div className="flex items-center justify-between p-3 border rounded-lg">
+                <div className="flex items-center gap-2">
+                  {getKycStatusIcon(userProfile.kyc_status)}
+                  <span className="font-medium text-sm">KYC Status</span>
+                </div>
+                <span className={`font-semibold capitalize text-sm ${
+                  userProfile.kyc_status === "verified"
+                    ? "text-green-500"
+                    : userProfile.kyc_status === "rejected"
+                      ? "text-red-500"
+                      : userProfile.kyc_status === "suspended"
+                        ? "text-red-500"
+                        : "text-yellow-500"
+                }`}>
+                  {userProfile.kyc_status || "pending"}
+                </span>
+              </div>
+
+              {/* Balances */}
+              {userBalance && (
+                <div className="p-3 border rounded-lg space-y-2">
+                  <p className="text-sm font-medium">Balance Information</p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-muted-foreground">Account:</span>
+                      <p className="font-semibold">{formatCurrency(userBalance.account_balance)}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Trading:</span>
+                      <p className="font-semibold text-blue-500">{formatCurrency(userBalance.trading_balance)}</p>
+                    </div>
+                  </div>
+                  <div className="border-t pt-2 text-xs">
+                    <p className="font-semibold">
+                      Total: {formatCurrency(
+                        (userBalance.account_balance || 0) +
+                          (userBalance.trading_balance || 0) +
+                          (userBalance.profit_balance || 0)
+                      )}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Account Actions */}
+              <div className="space-y-2 border-t pt-3">
+                <h3 className="font-medium text-sm">Account Actions</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {isSuspended ? (
+                    <Button
+                      onClick={() => performUserAction("unsuspend")}
+                      disabled={actionLoading === "unsuspend"}
+                      className="bg-green-500 hover:bg-green-600 text-white"
+                      size="sm"
+                    >
+                      {actionLoading === "unsuspend" ? "..." : (
+                        <><Play className="w-3 h-3 mr-1" /> Unsuspend</>
+                      )}
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => performUserAction("suspend")}
+                      disabled={actionLoading === "suspend"}
+                      className="bg-yellow-500 hover:bg-yellow-600 text-white"
+                      size="sm"
+                    >
+                      {actionLoading === "suspend" ? "..." : (
+                        <><Pause className="w-3 h-3 mr-1" /> Suspend</>
+                      )}
+                    </Button>
+                  )}
+                  <Button
+                    onClick={() => performUserAction("reset_password")}
+                    disabled={actionLoading === "reset_password"}
+                    variant="outline"
+                    size="sm"
+                  >
+                    {actionLoading === "reset_password" ? "..." : (
+                      <><Key className="w-3 h-3 mr-1" /> Reset Pwd</>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={() => performUserAction("delete")}
+                    disabled={actionLoading === "delete"}
+                    variant="destructive"
+                    size="sm"
+                    className="col-span-2"
+                  >
+                    {actionLoading === "delete" ? "..." : (
+                      <><Trash2 className="w-3 h-3 mr-1" /> Delete Account</>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* KYC Update */}
+              <div className="space-y-2 border-t pt-3">
+                <h3 className="font-medium text-sm">Update KYC Status</h3>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={async () => {
+                      await supabase.from("profiles").update({ kyc_status: "verified" }).eq("user_id", selectedUser.id);
+                      toast.success("KYC status updated");
+                      await loadUserProfile(selectedUser.id);
+                    }}
+                    className="bg-green-500 hover:bg-green-600 text-white flex-1"
+                    size="sm"
+                  >
+                    Verify
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      await supabase.from("profiles").update({ kyc_status: "rejected" }).eq("user_id", selectedUser.id);
+                      toast.success("KYC status updated");
+                      await loadUserProfile(selectedUser.id);
+                    }}
+                    className="bg-red-500 hover:bg-red-600 text-white flex-1"
+                    size="sm"
+                  >
+                    Reject
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-4 text-muted-foreground mt-3">
+              <p className="text-sm">No profile data found.</p>
+              <Button onClick={createProfileIfNeeded} className="mt-2" size="sm" variant="outline">
+                Create Profile
+              </Button>
+            </div>
+          )}
+        </Card>
+      </div>
+    );
+  };
+
   return (
-    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground">User Management</h1>
         <p className="text-sm sm:text-base text-muted-foreground mt-1 sm:mt-2">
@@ -345,308 +524,290 @@ export default function AdminUsersPage() {
 
       <Tabs id="admin-users-tabs" value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="users" className="text-xs sm:text-sm">Users & Actions</TabsTrigger>
-          <TabsTrigger value="balances" className="text-xs sm:text-sm">Balance Management</TabsTrigger>
+          <TabsTrigger value="users" className="text-xs sm:text-sm py-2">Users & Actions</TabsTrigger>
+          <TabsTrigger value="balances" className="text-xs sm:text-sm py-2">Balance Management</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="users" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-            {/* User Search */}
-            <Card className="p-4 sm:p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Search className="w-5 h-5 shrink-0" />
-                <h2 className="text-lg sm:text-xl font-semibold">Find User</h2>
+        <TabsContent value="users" className="space-y-4 sm:space-y-6">
+          {/* Mobile: Show user detail if selected */}
+          {showUserDetail && selectedUser ? (
+            <UserDetailPanel />
+          ) : (
+            <>
+              {/* Desktop: Side-by-side layout */}
+              <div className="hidden lg:grid lg:grid-cols-2 gap-4 sm:gap-6">
+                {/* User Search */}
+                <Card className="p-4 sm:p-6 border-border bg-card">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Search className="w-5 h-5 shrink-0" />
+                    <h2 className="text-lg sm:text-xl font-semibold">Find User</h2>
+                  </div>
+
+                  <div className="space-y-4">
+                    <Input
+                      placeholder="Search by name, email, or user ID..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+
+                    <div className="max-h-64 sm:max-h-96 overflow-y-auto space-y-2">
+                      {loading ? (
+                        <div className="text-center py-6 sm:py-8 text-muted-foreground text-sm">
+                          Loading users...
+                        </div>
+                      ) : filteredUsers.length > 0 ? (
+                        filteredUsers.map((user) => (
+                          <div
+                            key={user.id}
+                            className={`p-2 sm:p-3 border rounded-lg cursor-pointer transition-colors ${
+                              selectedUser?.id === user.id
+                                ? "border-[#00FE01] bg-[#00FE01]/5"
+                                : "hover:bg-muted"
+                            }`}
+                            onClick={() => setSelectedUser(user)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm sm:text-base truncate">
+                                  {user.firstName && user.lastName
+                                    ? `${user.firstName} ${user.lastName}`
+                                    : user.firstName || user.lastName || "No name"}
+                                </p>
+                                <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                                  {user.emailAddresses[0]?.emailAddress || "No email"}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate">
+                                  ID: {user.id.slice(0, 12)}...
+                                </p>
+                              </div>
+                              {user.publicMetadata?.suspended && (
+                                <Ban className="w-4 h-4 text-red-500 shrink-0 ml-2" />
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-6 sm:py-8 text-muted-foreground text-sm">
+                          No users found
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+
+                {/* User Details & Actions */}
+                <Card className="p-4 sm:p-6 border-border bg-card">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Users className="w-5 h-5 shrink-0" />
+                    <h2 className="text-lg sm:text-xl font-semibold">User Details</h2>
+                  </div>
+
+                  {selectedUser ? (
+                    <div className="space-y-4">
+                      <div className="p-3 bg-muted rounded-lg">
+                        <p className="font-medium text-sm sm:text-base">
+                          {selectedUser.firstName && selectedUser.lastName
+                            ? `${selectedUser.firstName} ${selectedUser.lastName}`
+                            : selectedUser.firstName || selectedUser.lastName || "No name"}
+                        </p>
+                        <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                          {selectedUser.emailAddresses[0]?.emailAddress || "No email"}
+                        </p>
+                        <p className="text-xs text-blue-500 mt-1 truncate">
+                          Clerk ID: {selectedUser.id}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Created: {new Date(selectedUser.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+
+                      {profileLoading ? (
+                        <div className="text-center py-4 text-muted-foreground">
+                          <p>Loading user data...</p>
+                        </div>
+                      ) : userProfile ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between p-3 border rounded-lg">
+                            <div className="flex items-center gap-2">
+                              {getKycStatusIcon(userProfile.kyc_status)}
+                              <span className="font-medium">KYC Status</span>
+                            </div>
+                            <span className={`font-semibold capitalize ${
+                              userProfile.kyc_status === "verified"
+                                ? "text-green-500"
+                                : userProfile.kyc_status === "rejected"
+                                  ? "text-red-500"
+                                  : userProfile.kyc_status === "suspended"
+                                    ? "text-red-500"
+                                    : "text-yellow-500"
+                            }`}>
+                              {userProfile.kyc_status || "pending"}
+                            </span>
+                          </div>
+
+                          {userBalance && (
+                            <div className="p-3 border rounded-lg space-y-2">
+                              <p className="text-sm font-medium">Balance Information</p>
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                  <span className="text-muted-foreground">Account:</span>
+                                  <p className="font-semibold">{formatCurrency(userBalance.account_balance)}</p>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">Trading:</span>
+                                  <p className="font-semibold text-blue-500">{formatCurrency(userBalance.trading_balance)}</p>
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground">Profit:</span>
+                                  <p className="font-semibold text-green-500">{formatCurrency(userBalance.profit_balance)}</p>
+                                </div>
+                                <div className="col-span-2">
+                                  <span className="text-muted-foreground">Total:</span>
+                                  <p className="font-semibold text-lg">
+                                    {formatCurrency(
+                                      (userBalance.account_balance || 0) +
+                                        (userBalance.trading_balance || 0) +
+                                        (userBalance.profit_balance || 0)
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="space-y-2 border-t pt-3">
+                            <h3 className="font-medium">Account Actions</h3>
+                            <div className="grid grid-cols-2 gap-2">
+                              {isSuspended ? (
+                                <Button onClick={() => performUserAction("unsuspend")} disabled={actionLoading === "unsuspend"} className="bg-green-500 hover:bg-green-600 text-white" size="sm">
+                                  {actionLoading === "unsuspend" ? "..." : <><Play className="w-3 h-3 mr-1" /> Unsuspend</>}
+                                </Button>
+                              ) : (
+                                <Button onClick={() => performUserAction("suspend")} disabled={actionLoading === "suspend"} className="bg-yellow-500 hover:bg-yellow-600 text-white" size="sm">
+                                  {actionLoading === "suspend" ? "..." : <><Pause className="w-3 h-3 mr-1" /> Suspend</>}
+                                </Button>
+                              )}
+                              <Button onClick={() => performUserAction("reset_password")} disabled={actionLoading === "reset_password"} variant="outline" size="sm">
+                                {actionLoading === "reset_password" ? "..." : <><Key className="w-3 h-3 mr-1" /> Reset Pwd</>}
+                              </Button>
+                              <Button onClick={() => performUserAction("delete")} disabled={actionLoading === "delete"} variant="destructive" size="sm" className="col-span-2">
+                                {actionLoading === "delete" ? "..." : <><Trash2 className="w-3 h-3 mr-1" /> Delete Account</>}
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2 border-t pt-3">
+                            <h3 className="font-medium">Update KYC Status</h3>
+                            <div className="flex gap-2">
+                              <Button
+                                onClick={async () => {
+                                  await supabase.from("profiles").update({ kyc_status: "verified" }).eq("user_id", selectedUser.id);
+                                  toast.success("KYC status updated");
+                                  await loadUserProfile(selectedUser.id);
+                                }}
+                                className="bg-green-500 hover:bg-green-600 text-white"
+                                size="sm"
+                              >
+                                Verify
+                              </Button>
+                              <Button
+                                onClick={async () => {
+                                  await supabase.from("profiles").update({ kyc_status: "rejected" }).eq("user_id", selectedUser.id);
+                                  toast.success("KYC status updated");
+                                  await loadUserProfile(selectedUser.id);
+                                }}
+                                className="bg-red-500 hover:bg-red-600 text-white"
+                                size="sm"
+                              >
+                                Reject
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-4 text-muted-foreground">
+                          <p>No profile data found. Click to create profile.</p>
+                          <Button onClick={createProfileIfNeeded} className="mt-2" size="sm" variant="outline">
+                            Create Profile
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                      <p>Select a user to view details</p>
+                    </div>
+                  )}
+                </Card>
               </div>
 
-              <div className="space-y-4">
-                <Input
-                  placeholder="Search by name, email, or user ID..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+              {/* Mobile + Tablet: Single column user cards */}
+              <div className="lg:hidden space-y-3">
+                {/* Search */}
+                <Card className="p-4 border-border bg-card">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Search className="w-4 h-4 shrink-0 text-muted-foreground" />
+                    <Input
+                      placeholder="Search users..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="bg-background border-border text-sm"
+                    />
+                  </div>
+                </Card>
 
-                <div className="max-h-64 sm:max-h-96 overflow-y-auto space-y-2">
+                {/* User list */}
+                <div className="space-y-2">
                   {loading ? (
-                    <div className="text-center py-6 sm:py-8 text-muted-foreground text-sm">
-                      Loading users...
-                    </div>
+                    <div className="text-center py-8 text-muted-foreground text-sm">Loading users...</div>
                   ) : filteredUsers.length > 0 ? (
                     filteredUsers.map((user) => (
-                      <div
+                      <Card
                         key={user.id}
-                        className={`p-2 sm:p-3 border rounded-lg cursor-pointer transition-colors ${
+                        className={`p-4 border-border bg-card cursor-pointer transition-colors ${
                           selectedUser?.id === user.id
                             ? "border-[#00FE01] bg-[#00FE01]/5"
-                            : "hover:bg-muted"
+                            : "hover:bg-muted/50"
                         }`}
-                        onClick={() => setSelectedUser(user)}
+                        onClick={() => {
+                          setSelectedUser(user);
+                          setShowUserDetail(true);
+                        }}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm sm:text-base truncate">
+                            <p className="font-medium text-sm truncate">
                               {user.firstName && user.lastName
                                 ? `${user.firstName} ${user.lastName}`
                                 : user.firstName || user.lastName || "No name"}
                             </p>
-                            <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                              {user.emailAddresses[0]?.emailAddress ||
-                                "No email"}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate">
-                              ID: {user.id.slice(0, 12)}...
+                            <p className="text-xs text-muted-foreground truncate">
+                              {user.emailAddresses[0]?.emailAddress || "No email"}
                             </p>
                           </div>
-                          {user.publicMetadata?.suspended && (
-                            <Ban className="w-4 h-4 text-red-500 shrink-0 ml-2" />
-                          )}
+                          <div className="flex items-center gap-2 shrink-0 ml-2">
+                            {user.publicMetadata?.suspended && (
+                              <Ban className="w-4 h-4 text-red-500" />
+                            )}
+                            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                          </div>
                         </div>
-                      </div>
+                      </Card>
                     ))
                   ) : (
-                    <div className="text-center py-6 sm:py-8 text-muted-foreground text-sm">
-                      No users found
-                    </div>
+                    <div className="text-center py-8 text-muted-foreground text-sm">No users found</div>
                   )}
                 </div>
               </div>
-            </Card>
-
-            {/* User Details & Actions */}
-            <Card className="p-4 sm:p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Users className="w-5 h-5 shrink-0" />
-                <h2 className="text-lg sm:text-xl font-semibold">User Details</h2>
-              </div>
-
-              {selectedUser ? (
-                <div className="space-y-4">
-                  <div className="p-3 bg-muted rounded-lg">
-                    <p className="font-medium text-sm sm:text-base">
-                      {selectedUser.firstName && selectedUser.lastName
-                        ? `${selectedUser.firstName} ${selectedUser.lastName}`
-                        : selectedUser.firstName ||
-                          selectedUser.lastName ||
-                          "No name"}
-                    </p>
-                    <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                      {selectedUser.emailAddresses[0]?.emailAddress ||
-                        "No email"}
-                    </p>
-                    <p className="text-xs text-blue-500 mt-1 truncate">
-                      Clerk ID: {selectedUser.id}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Created:{" "}
-                      {new Date(selectedUser.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-
-                  {profileLoading ? (
-                    <div className="text-center py-4 text-muted-foreground">
-                      <p>Loading user data...</p>
-                    </div>
-                  ) : userProfile ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex items-center gap-2">
-                          {getKycStatusIcon(userProfile.kyc_status)}
-                          <span className="font-medium">KYC Status</span>
-                        </div>
-                        <span
-                          className={`font-semibold capitalize ${
-                            userProfile.kyc_status === "verified"
-                              ? "text-green-500"
-                              : userProfile.kyc_status === "rejected"
-                                ? "text-red-500"
-                                : userProfile.kyc_status === "suspended"
-                                  ? "text-red-500"
-                                  : "text-yellow-500"
-                          }`}
-                        >
-                          {userProfile.kyc_status || "pending"}
-                        </span>
-                      </div>
-
-                      {userBalance && (
-                        <div className="p-3 border rounded-lg space-y-2">
-                          <p className="text-sm font-medium">
-                            Balance Information
-                          </p>
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div>
-                              <span className="text-muted-foreground">
-                                Account:
-                              </span>
-                              <p className="font-semibold">
-                                {formatCurrency(userBalance.account_balance)}
-                              </p>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">
-                                Trading:
-                              </span>
-                              <p className="font-semibold text-blue-500">
-                                {formatCurrency(userBalance.trading_balance)}
-                              </p>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">
-                                Profit:
-                              </span>
-                              <p className="font-semibold text-green-500">
-                                {formatCurrency(userBalance.profit_balance)}
-                              </p>
-                            </div>
-                            <div className="col-span-2">
-                              <span className="text-muted-foreground">
-                                Total:
-                              </span>
-                              <p className="font-semibold text-lg">
-                                {formatCurrency(
-                                  (userBalance.account_balance || 0) +
-                                    (userBalance.trading_balance || 0) +
-                                    (userBalance.profit_balance || 0)
-                                )}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="space-y-2 border-t pt-3">
-                        <h3 className="font-medium">Account Actions</h3>
-                        <div className="grid grid-cols-2 gap-2">
-                          {isSuspended ? (
-                            <Button
-                              onClick={() => performUserAction("unsuspend")}
-                              disabled={actionLoading === "unsuspend"}
-                              className="bg-green-500 hover:bg-green-600 text-white"
-                              size="sm"
-                            >
-                              {actionLoading === "unsuspend" ? (
-                                "..."
-                              ) : (
-                                <>
-                                  <Play className="w-3 h-3 mr-1" />
-                                  Unsuspend
-                                </>
-                              )}
-                            </Button>
-                          ) : (
-                            <Button
-                              onClick={() => performUserAction("suspend")}
-                              disabled={actionLoading === "suspend"}
-                              className="bg-yellow-500 hover:bg-yellow-600 text-white"
-                              size="sm"
-                            >
-                              {actionLoading === "suspend" ? (
-                                "..."
-                              ) : (
-                                <>
-                                  <Pause className="w-3 h-3 mr-1" />
-                                  Suspend
-                                </>
-                              )}
-                            </Button>
-                          )}
-
-                          <Button
-                            onClick={() => performUserAction("reset_password")}
-                            disabled={actionLoading === "reset_password"}
-                            variant="outline"
-                            size="sm"
-                          >
-                            {actionLoading === "reset_password" ? (
-                              "..."
-                            ) : (
-                              <>
-                                <Key className="w-3 h-3 mr-1" />
-                                Reset Password
-                              </>
-                            )}
-                          </Button>
-
-                          <Button
-                            onClick={() => performUserAction("delete")}
-                            disabled={actionLoading === "delete"}
-                            variant="destructive"
-                            size="sm"
-                            className="col-span-2"
-                          >
-                            {actionLoading === "delete" ? (
-                              "..."
-                            ) : (
-                              <>
-                                <Trash2 className="w-3 h-3 mr-1" />
-                                Delete Account
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2 border-t pt-3">
-                        <h3 className="font-medium">Update KYC Status</h3>
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={async () => {
-                              await supabase
-                                .from("profiles")
-                                .update({ kyc_status: "verified" })
-                                .eq("user_id", selectedUser.id);
-                              toast.success("KYC status updated");
-                              await loadUserProfile(selectedUser.id);
-                            }}
-                            className="bg-green-500 hover:bg-green-600 text-white"
-                            size="sm"
-                          >
-                            Verify
-                          </Button>
-                          <Button
-                            onClick={async () => {
-                              await supabase
-                                .from("profiles")
-                                .update({ kyc_status: "rejected" })
-                                .eq("user_id", selectedUser.id);
-                              toast.success("KYC status updated");
-                              await loadUserProfile(selectedUser.id);
-                            }}
-                            className="bg-red-500 hover:bg-red-600 text-white"
-                            size="sm"
-                          >
-                            Reject
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-4 text-muted-foreground">
-                      <p>No profile data found. Click to create profile.</p>
-                      <Button
-                        onClick={createProfileIfNeeded}
-                        className="mt-2"
-                        size="sm"
-                        variant="outline"
-                      >
-                        Create Profile
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                  <p>Select a user to view details</p>
-                </div>
-              )}
-            </Card>
-          </div>
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="balances" className="space-y-4 sm:space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             {/* User Selector */}
-            <Card className="p-4 sm:p-6">
+            <Card className="p-4 sm:p-6 border-border bg-card">
               <div className="flex items-center gap-2 mb-4">
                 <Search className="w-5 h-5 shrink-0" />
                 <h2 className="text-lg sm:text-xl font-semibold">Select User</h2>
@@ -683,7 +844,7 @@ export default function AdminUsersPage() {
             </Card>
 
             {/* Transaction Form */}
-            <Card className="p-4 sm:p-6">
+            <Card className="p-4 sm:p-6 border-border bg-card">
               <div className="flex items-center gap-2 mb-4">
                 <DollarSign className="w-5 h-5 shrink-0" />
                 <h2 className="text-lg sm:text-xl font-semibold">Apply Transaction</h2>
@@ -692,16 +853,13 @@ export default function AdminUsersPage() {
               {selectedUser ? (
                 <div className="space-y-4">
                   <div className="p-3 bg-muted rounded-lg">
-                    <p className="font-medium">
+                    <p className="font-medium text-sm sm:text-base">
                       {selectedUser.firstName && selectedUser.lastName
                         ? `${selectedUser.firstName} ${selectedUser.lastName}`
-                        : selectedUser.firstName ||
-                          selectedUser.lastName ||
-                          "No name"}
+                        : selectedUser.firstName || selectedUser.lastName || "No name"}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {selectedUser.emailAddresses[0]?.emailAddress ||
-                        "No email"}
+                      {selectedUser.emailAddresses[0]?.emailAddress || "No email"}
                     </p>
                     {userBalance && (
                       <div className="mt-2 pt-2 border-t space-y-1">
@@ -725,15 +883,11 @@ export default function AdminUsersPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Transaction Type
-                    </label>
+                    <label className="block text-sm font-medium mb-1">Transaction Type</label>
                     <select
-                      className="w-full border rounded px-3 py-2 bg-background"
+                      className="w-full border rounded px-3 py-2 bg-background text-sm"
                       value={transactionType}
-                      onChange={(e) =>
-                        setTransactionType(e.target.value as any)
-                      }
+                      onChange={(e) => setTransactionType(e.target.value as any)}
                     >
                       <option value="deposit">Deposit</option>
                       <option value="withdrawal">Withdrawal</option>
@@ -745,9 +899,7 @@ export default function AdminUsersPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Amount
-                    </label>
+                    <label className="block text-sm font-medium mb-1">Amount</label>
                     <Input
                       type="number"
                       step="0.01"
@@ -758,11 +910,9 @@ export default function AdminUsersPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Description (Optional)
-                    </label>
+                    <label className="block text-sm font-medium mb-1">Description (Optional)</label>
                     <textarea
-                      className="w-full border rounded px-3 py-2 bg-background resize-none"
+                      className="w-full border rounded px-3 py-2 bg-background resize-none text-sm"
                       rows={3}
                       placeholder="Transaction description..."
                       value={description}
@@ -773,43 +923,24 @@ export default function AdminUsersPage() {
                   <LoadingButton
                     onClick={applyTransaction}
                     loading={actionLoading === "transaction"}
-                    className={`w-full ${
-                      transactionType === "deposit" ||
-                      transactionType === "profit" ||
-                      transactionType === "trade_add"
+                    className={`w-full text-sm ${
+                      transactionType === "deposit" || transactionType === "profit" || transactionType === "trade_add"
                         ? "bg-green-500 hover:bg-green-600"
                         : "bg-red-500 hover:bg-red-600"
-                    }`}
+                    } text-white`}
                   >
-                    {transactionType === "deposit" && (
-                      <TrendingUp className="w-4 h-4 mr-2" />
-                    )}
-                    {transactionType === "withdrawal" && (
-                      <TrendingDown className="w-4 h-4 mr-2" />
-                    )}
-                    {transactionType === "profit" && (
-                      <TrendingUp className="w-4 h-4 mr-2" />
-                    )}
-                    {transactionType === "loss" && (
-                      <TrendingDown className="w-4 h-4 mr-2" />
-                    )}
-                    {transactionType === "trade_add" && (
-                      <TrendingUp className="w-4 h-4 mr-2 text-blue-400" />
-                    )}
-                    {transactionType === "trade_subtract" && (
-                      <TrendingDown className="w-4 h-4 mr-2 text-blue-400" />
-                    )}
-                    {transactionType === "deposit"
-                      ? "Deposit Funds"
-                      : transactionType === "withdrawal"
-                        ? "Withdraw Funds"
-                        : transactionType === "profit"
-                          ? "Add Profit"
-                          : transactionType === "trade_add"
-                            ? "Add Trade Balance"
-                            : transactionType === "trade_subtract"
-                              ? "Subtract Trade Balance"
-                              : "Add Loss"}
+                    {transactionType === "deposit" && <TrendingUp className="w-4 h-4 mr-2" />}
+                    {transactionType === "withdrawal" && <TrendingDown className="w-4 h-4 mr-2" />}
+                    {transactionType === "profit" && <TrendingUp className="w-4 h-4 mr-2" />}
+                    {transactionType === "loss" && <TrendingDown className="w-4 h-4 mr-2" />}
+                    {transactionType === "trade_add" && <TrendingUp className="w-4 h-4 mr-2 text-blue-400" />}
+                    {transactionType === "trade_subtract" && <TrendingDown className="w-4 h-4 mr-2 text-blue-400" />}
+                    {transactionType === "deposit" ? "Deposit Funds"
+                      : transactionType === "withdrawal" ? "Withdraw Funds"
+                      : transactionType === "profit" ? "Add Profit"
+                      : transactionType === "trade_add" ? "Add Trade Balance"
+                      : transactionType === "trade_subtract" ? "Subtract Trade Balance"
+                      : "Add Loss"}
                   </LoadingButton>
                 </div>
               ) : (

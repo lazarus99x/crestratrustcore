@@ -84,23 +84,29 @@ export function AdminOverview() {
   }, []);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
       {(loading ? [1, 2, 3, 4] : stats).map((stat: any, index: number) => {
         const Icon = loading ? Users : stat.icon;
         return (
-          <Card key={index} className="border-border bg-card p-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">{loading ? "Loading..." : stat.label}</p>
-                <p className="text-3xl font-bold text-foreground">
-                  {loading ? <span className="inline-block w-24 h-7 bg-muted animate-pulse rounded" /> : stat.value}
+          <Card key={index} className="border-border bg-card p-4 sm:p-6">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2 truncate">
+                  {loading ? "Loading..." : stat.label}
+                </p>
+                <p className="text-xl sm:text-3xl font-bold text-foreground">
+                  {loading ? (
+                    <span className="inline-block w-16 sm:w-24 h-5 sm:h-7 bg-muted animate-pulse rounded" />
+                  ) : (
+                    stat.value
+                  )}
                 </p>
                 {!loading && stat.change ? (
-                  <p className="text-xs text-muted-foreground mt-2">{stat.change}</p>
+                  <p className="text-xs text-muted-foreground mt-1 sm:mt-2 truncate">{stat.change}</p>
                 ) : null}
               </div>
-              <div className={`p-3 rounded-lg bg-muted ${loading ? "text-muted-foreground" : stat.color}`}>
-                <Icon className="w-6 h-6" />
+              <div className={`p-2 sm:p-3 rounded-lg bg-muted shrink-0 ${loading ? "text-muted-foreground" : stat.color}`}>
+                <Icon className="w-4 h-4 sm:w-6 sm:h-6" />
               </div>
             </div>
           </Card>

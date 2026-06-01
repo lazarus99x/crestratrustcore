@@ -13,7 +13,7 @@ function getAdminClient() {
 
 export async function GET() {
   try {
-    // Fetch users from Clerk
+    // Fetch users from Clerk (mock using Supabase profiles)
     const client = await clerkClient();
     const userList = await client.users.getUserList({
       limit: 100,
@@ -82,4 +82,3 @@ export async function GET() {
     );
   }
 }
-

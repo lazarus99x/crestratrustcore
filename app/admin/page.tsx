@@ -13,17 +13,17 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState("overview");
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
-        <p className="text-muted-foreground mt-2">
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Admin Dashboard</h1>
+        <p className="text-sm sm:text-base text-muted-foreground mt-1 sm:mt-2">
           Manage users, verify accounts, and monitor platform activity
         </p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <motion.div
-          className="relative mb-6 rounded-lg overflow-hidden"
+          className="relative mb-4 sm:mb-6 rounded-lg overflow-hidden"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
@@ -42,34 +42,34 @@ export default function AdminPage() {
           <TabsList className="grid w-full grid-cols-3 relative z-10 bg-card/50 backdrop-blur border border-border">
             <TabsTrigger
               value="overview"
-              className="data-[state=active]:bg-[#00FE01] data-[state=active]:text-black"
+              className="data-[state=active]:bg-[#00FE01] data-[state=active]:text-black text-xs sm:text-sm py-2 sm:py-2.5"
             >
               Overview
             </TabsTrigger>
             <TabsTrigger
               value="users"
-              className="data-[state=active]:bg-[#00FE01] data-[state=active]:text-black"
+              className="data-[state=active]:bg-[#00FE01] data-[state=active]:text-black text-xs sm:text-sm py-2 sm:py-2.5"
             >
               User Management
             </TabsTrigger>
             <TabsTrigger
               value="analytics"
-              className="data-[state=active]:bg-[#00FE01] data-[state=active]:text-black"
+              className="data-[state=active]:bg-[#00FE01] data-[state=active]:text-black text-xs sm:text-sm py-2 sm:py-2.5"
             >
               Analytics
             </TabsTrigger>
           </TabsList>
         </motion.div>
 
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview" className="space-y-4 sm:space-y-6">
           <AdminOverview />
         </TabsContent>
 
-        <TabsContent value="users" className="space-y-6">
+        <TabsContent value="users" className="space-y-4 sm:space-y-6">
           <UserManagement />
         </TabsContent>
 
-        <TabsContent value="analytics" className="space-y-6">
+        <TabsContent value="analytics" className="space-y-4 sm:space-y-6">
           <PlatformAnalytics />
         </TabsContent>
       </Tabs>

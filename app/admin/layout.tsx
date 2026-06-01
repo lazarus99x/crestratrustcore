@@ -12,15 +12,15 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [checking, setChecking] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
 
-  // Auto-close sidebar on route change
+  // Auto-close sidebar on route change (mobile)
   useEffect(() => {
-    setOpen(false);
+    setSidebarOpen(false);
   }, [pathname]);
 
   // Client-side admin guard (second layer after middleware)
@@ -72,26 +72,19 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-background overflow-hidden">
       {/* Sidebar */}
-      <div
-        className={`${open ? "block" : "hidden"} md:block md:w-64 flex-shrink-0`}
-      >
-        <AdminSidebar />
-      </div>
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="md:hidden p-2 border-b border-border bg-card">
-          <button
-            className="px-3 py-2 text-sm rounded border"
-            onClick={() => setOpen((v) => !v)}
-          >
-            {open ? "Close Menu" : "Open Menu"}
-          </button>
+      <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      {/* Main content */}
+      <div className="flex-1 flex flex-col min-w-0 w-full">
+        <AdminTopNav onMenuToggle={() => setSidebarOpen(true)} />
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
+            {children}
+          </div>
         </div>
-        <AdminTopNav />
-        <div className="flex-1 overflow-auto">{children}</div>
       </div>
     </div>
   );
 }
-
